@@ -36,13 +36,13 @@ app = typer.Typer(
     add_completion=True,
 )
 
-# ─── Sub-apps (grouped commands) ─────────────────────────────────────────────
+# ─── Sub-apps (grouped commands) ──────────────────────────────────────────────────
 app.add_typer(cipher.app,    name="cipher",    help="🔐 Classical & modern ciphers.")
 app.add_typer(wifilab.app,   name="wifilab",   help="📡 WiFi Lab — scan, map devices, test own AP.")
 app.add_typer(passlab.app,   name="passlab",   help="🔑 Password Lab — hash, crack, generate.")
 app.add_typer(packetlab.app, name="packetlab", help="📦 Packet Lab — capture, ARP scan, builder.")
 
-# ─── Single commands ──────────────────────────────────────────────────────────
+# ─── Single commands ────────────────────────────────────────────────────────────
 app.command("portscan")(portscan.portscan)
 app.command("username")(username.username)
 app.command("wifi")(wifi.wifi)
@@ -73,24 +73,11 @@ def studio(
     from devha.studio import run_studio
     module = run_studio()
 
-    # Map module name → CLI command to run
-    _module_map = {
-        "network":  ["devha", "devscanner", "--help"],
-        "wifi":     ["devha", "wifilab", "--help"],
-        "osint":    ["devha", "username", "--help"],
-        "cipher":   ["devha", "cipher", "--help"],
-        "web":      ["devha", "dirscan", "--help"],
-        "password": ["devha", "passlab", "--help"],
-        "packets":  ["devha", "packetlab", "--help"],
-        "headers":  ["devha", "headers", "--help"],
-        "ping":     ["devha", "ping", "--help"],
-    }
-
-    if module and module in _module_map:
-        subprocess.run(_module_map[module])
+    if module:
+        _launch_module(module)
 
 
-# ─── Version + main callback ─────────────────────────────────────────────────
+# ─── Version + main callback ───────────────────────────────────────────────────
 
 def _version_callback(value: bool) -> None:
     if value:
@@ -126,17 +113,85 @@ def main(
         print_banner()
 
 
+_MODULE_INFO = {
+    "network":  {
+        "cmd": "devscanner",
+        "label": "Network Scanner",
+        "example": "devha devscanner scanme.nmap.org",
+        "hint": "devha devscanner <host> [--ports 1-1000] [--json]",
+    },
+    "wifi":     {
+        "cmd": "wifilab",
+        "label": "WiFi Lab",
+        "example": "devha wifilab scan",
+        "hint": "devha wifilab [scan | devices | security | deauth-test]",
+    },
+    "osint":    {
+        "cmd": "username",
+        "label": "OSINT Suite",
+        "example": "devha username johndoe",
+        "hint": "devha username <name>  |  devha harvest <domain>  |  devha subdomains <domain>",
+    },
+    "cipher":   {
+        "cmd": "cipher",
+        "label": "Crypto & Cipher",
+        "example": "devha cipher encode 'Hello' --type caesar --key 13",
+        "hint": "devha cipher [encode | decode | crack | all] <text> [--type TYPE]",
+    },
+    "web":      {
+        "cmd": "dirscan",
+        "label": "Web Recon",
+        "example": "devha dirscan https://example.com",
+        "hint": "devha dirscan <url>  |  devha crawl <url>  |  devha headers <url>",
+    },
+    "password": {
+        "cmd": "passlab",
+        "label": "Password Lab",
+        "example": "devha passlab generate",
+        "hint": "devha passlab [hash | crack | strength | generate | identify]",
+    },
+    "packets":  {
+        "cmd": "packetlab",
+        "label": "Packet Lab",
+        "example": "devha packetlab arp-scan",
+        "hint": "devha packetlab [capture | arp-scan | build | stats]",
+    },
+    "headers":  {
+        "cmd": "headers",
+        "label": "Headers Audit",
+        "example": "devha headers https://example.com",
+        "hint": "devha headers <url> [--json]",
+    },
+    "ping":     {
+        "cmd": "ping",
+        "label": "Ping & Trace",
+        "example": "devha ping 8.8.8.8",
+        "hint": "devha ping <host> [--count 5]",
+    },
+}
+
+
 def _launch_module(module: str) -> None:
-    _map = {
-        "network":  ["devha", "devscanner", "--help"],
-        "wifi":     ["devha", "wifilab", "--help"],
-        "osint":    ["devha", "username", "--help"],
-        "cipher":   ["devha", "cipher", "--help"],
-        "web":      ["devha", "dirscan", "--help"],
-        "password": ["devha", "passlab", "--help"],
-        "packets":  ["devha", "packetlab", "--help"],
-        "headers":  ["devha", "headers", "--help"],
-        "ping":     ["devha", "ping", "--help"],
-    }
-    if module in _map:
-        subprocess.run(_map[module])
+    info = _MODULE_INFO.get(module)
+    if not info:
+        return
+
+    console.print(f"\n[bold cyan]── {info['label']} ──[/bold cyan]")
+    console.print(f"[dim]Usage:[/dim]  [green]{info['hint']}[/green]")
+    console.print(f"[dim]Example:[/dim] [yellow]{info['example']}[/yellow]\n")
+
+    try:
+        raw = input("Enter command (or press Enter to skip): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        console.print("\n[dim]Cancelled.[/dim]")
+        return
+
+    if not raw:
+        return
+
+    # Allow shorthand: if user types just args without 'devha', prepend it
+    parts = raw.split()
+    if parts and parts[0] != "devha":
+        parts = ["devha"] + parts
+
+    subprocess.run(parts)
