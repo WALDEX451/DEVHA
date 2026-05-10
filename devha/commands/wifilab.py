@@ -20,7 +20,7 @@ from devha.ui import console, make_table, print_panel, info, warn, error, succes
 app = typer.Typer(help="📡 WiFi Lab — scan networks, map devices, test your own AP security.")
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+# ─── Helpers ───────────────────────────────────────────────────────────────
 
 def _run(cmd: list[str], timeout: int = 15) -> str:
     try:
@@ -30,42 +30,19 @@ def _run(cmd: list[str], timeout: int = 15) -> str:
         return ""
 
 
-def _get_interface() -> str:
-    out = _run(["iwconfig"])
-    for line in out.splitlines():
-        if "IEEE 802.11" in line or "ESSID" in line:
-            return line.split()[0]
-    out2 = _run(["nmcli", "-t", "-f", "DEVICE,TYPE", "device"])
-    for line in out2.splitlines():
-        if "wifi" in line.lower():
-            return line.split(":")[0]
-    return "wlan0"
-
-
-def _resolve_mac(ip: str) -> str:
-    """Try to get MAC from ARP table."""
-    try:
-        out = _run(["arp", "-n", ip])
-        m = re.search(r"(([0-9a-fA-F]{2}[:\-]){5}[0-9a-fA-F]{2})", out)
-        return m.group(0) if m else "?"
-    except Exception:
-        return "?"
-
-
 def _vendor_from_mac(mac: str) -> str:
-    """Simple OUI lookup — first 3 octets."""
     oui_map = {
         "00:50:56": "VMware", "00:0c:29": "VMware", "08:00:27": "VirtualBox",
         "b8:27:eb": "Raspberry Pi", "dc:a6:32": "Raspberry Pi", "e4:5f:01": "Raspberry Pi",
-        "00:11:22": "Cimsys", "fc:fb:fb": "Cisco", "00:1a:2b": "Cisco",
+        "fc:fb:fb": "Cisco", "00:1a:2b": "Cisco",
         "ac:37:43": "Apple", "f8:ff:c2": "Apple", "3c:15:c2": "Apple",
-        "00:50:f2": "Microsoft", "28:d2:44": "Samsung", "98:01:a7": "Apple",
+        "28:d2:44": "Samsung", "98:01:a7": "Apple",
     }
     prefix = mac[:8].lower().replace("-", ":")
     return oui_map.get(prefix, "Unknown")
 
 
-# ─── Commands ─────────────────────────────────────────────────────────────────
+# ─── Commands ───────────────────────────────────────────────────────────────
 
 @app.command("scan")
 def scan_networks(
@@ -90,12 +67,26 @@ def scan_networks(
                     "bssid": parts[4] if len(parts) > 4 else "?",
                 })
     elif os_name == "Darwin":
+        # Try airport binary
         airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
         out = _run([airport, "-s"])
-        for line in out.strip().splitlines()[1:]:
-            p = line.split()
-            if len(p) >= 5:
-                networks.append({"ssid": p[0], "signal": p[2], "security": p[-1], "channel": p[3], "bssid": p[1]})
+        if not out.strip():
+            # Fallback: system_profiler
+            out2 = _run(["system_profiler", "SPAirPortDataType"])
+            if out2:
+                console.print("[dim]Using system_profiler (airport binary unavailable)...[/dim]")
+                for line in out2.splitlines():
+                    line = line.strip()
+                    if line.startswith("Other Local Wi-Fi Networks:") or ("Network Name" in line):
+                        pass
+                    m = re.match(r"^([^:]+):$", line)
+                    if m and len(m.group(1)) < 40:
+                        networks.append({"ssid": m.group(1), "signal": "?", "security": "?", "channel": "?", "bssid": "?"})
+        else:
+            for line in out.strip().splitlines()[1:]:
+                p = line.split()
+                if len(p) >= 5:
+                    networks.append({"ssid": p[0], "signal": p[2], "security": p[-1], "channel": p[3], "bssid": p[1]})
     elif os_name == "Windows":
         out = _run(["netsh", "wlan", "show", "networks", "mode=Bssid"])
         current: dict = {}
@@ -113,6 +104,11 @@ def scan_networks(
                 current["bssid"] = line.split(":", 1)[-1].strip()
         if current:
             networks.append(current)
+
+    if not networks:
+        warn("No networks found. On macOS, WiFi scanning may require location permissions or sudo.")
+        console.print("[dim]Try: sudo devha wifilab scan[/dim]")
+        return
 
     networks.sort(key=lambda x: -int(x["signal"].replace("%", "").strip()) if x["signal"].replace("%", "").strip().lstrip("-").isdigit() else 0)
 
@@ -140,7 +136,7 @@ def scan_networks(
 def _signal_bar(sig: str) -> str:
     try:
         val = int(sig.replace("%", "").strip())
-        val = val if val > 0 else 100 + val  # dBm to percentage
+        val = val if val > 0 else 100 + val
         blocks = int(val / 20)
         return "█" * blocks + "░" * (5 - blocks)
     except Exception:
@@ -155,14 +151,10 @@ def scan_devices(
     """
     Discover all devices on your local network using ARP.
 
-    Only works on your own network. Requires root/admin.
-
-    Example:
-      sudo devha wifilab devices
-      sudo devha wifilab devices --subnet 192.168.0.0/24
+    Requires root. Run: sudo devha wifilab devices
     """
     if os.geteuid() != 0:
-        error("Device scan requires root. Run: sudo devha wifilab devices")
+        error("Device scan requires root. Run: [bold]sudo devha wifilab devices[/bold]")
         raise typer.Exit(1)
 
     try:
@@ -173,7 +165,6 @@ def scan_devices(
         raise typer.Exit(1)
 
     if not subnet:
-        # Auto-detect local subnet
         hostname = socket.gethostname()
         local_ip = socket.gethostbyname(hostname)
         subnet = ".".join(local_ip.split(".")[:3]) + ".0/24"
@@ -215,7 +206,6 @@ def scan_devices(
         )
     console.print(table)
     console.print(f"\n[bright_green]Found {len(devices)} device(s) on {subnet}.[/bright_green]")
-    console.print("[dim]⚡ ARP scan — your network only[/dim]")
 
 
 @app.command("security")
@@ -226,8 +216,6 @@ def security_check(
     """
     Check your router/AP for common security weaknesses.
 
-    Tests: open ports, Telnet, default HTTP login page, WPS indicator.
-
     Example:
       devha wifilab security 192.168.1.1
     """
@@ -236,7 +224,6 @@ def security_check(
 
     checks = []
 
-    # Check common router ports
     dangerous_ports = {
         23: ("Telnet", "HIGH — unencrypted admin access"),
         80: ("HTTP admin", "MEDIUM — check if default password is set"),
@@ -257,7 +244,6 @@ def security_check(
         if open_:
             checks.append({"port": port, "service": svc, "risk": risk, "status": "OPEN"})
 
-    # Try HTTP login page detection
     try:
         import httpx
         r = httpx.get(f"http://{target}", timeout=3, follow_redirects=True)
@@ -292,15 +278,15 @@ def security_check(
 @app.command("deauth-test")
 def deauth_test(
     bssid: Annotated[str, typer.Argument(help="Your own AP BSSID (MAC address), e.g. AA:BB:CC:DD:EE:FF")],
-    client: Annotated[str, typer.Option("--client", "-c", help="Client MAC to test (default: broadcast)")] = "ff:ff:ff:ff:ff:ff",
-    count: Annotated[int, typer.Option("--count", "-n", help="Number of deauth frames to send.")] = 5,
+    client: Annotated[str, typer.Option("--client", "-c", help="Client MAC (default: broadcast)")] = "ff:ff:ff:ff:ff:ff",
+    count: Annotated[int, typer.Option("--count", "-n", help="Number of deauth frames.")] = 5,
     iface: Annotated[str, typer.Option("--iface", "-i", help="Wireless interface in monitor mode.")] = "wlan0mon",
 ) -> None:
     """
     Send deauth frames to YOUR OWN access point to test its resilience.
 
-    ⚠️  Only use on your own AP. Requires monitor mode + root.
-    Set up monitor mode first: sudo airmon-ng start wlan0
+    Requires monitor mode + root.
+    Setup: sudo airmon-ng start wlan0
 
     Example:
       sudo devha wifilab deauth-test AA:BB:CC:DD:EE:FF --iface wlan0mon
