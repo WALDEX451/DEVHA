@@ -55,12 +55,12 @@ class MatrixColumn(Static):
 
     def on_mount(self) -> None:
         self.col_chars = [random.choice(_MATRIX_CHARS) for _ in range(40)]
-        self.offset = random.randint(0, 30)
+        self._scroll = random.randint(0, 30)
         self.speed = random.uniform(0.05, 0.15)
         self.set_interval(self.speed, self._tick)
 
     def _tick(self) -> None:
-        self.offset = (self.offset + 1) % 40
+        self._scroll = (self._scroll + 1) % 40
         self.col_chars[random.randint(0, 39)] = random.choice(_MATRIX_CHARS)
         self.chars = "\n".join(self.col_chars)
 
@@ -68,7 +68,7 @@ class MatrixColumn(Static):
         t = Text()
         chars = self.col_chars
         for i, ch in enumerate(chars):
-            dist = (i - self.offset) % len(chars)
+            dist = (i - self._scroll) % len(chars)
             if dist == 0:
                 t.append(ch, "bold bright_white")
             elif dist < 4:
