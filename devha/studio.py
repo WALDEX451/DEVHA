@@ -19,19 +19,19 @@ from textual.widgets import Footer, Header, Label, Static, RichLog
 _MATRIX_CHARS = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ01アイウエオカキクケコ"
 
 _MENU_ITEMS = [
-    ("1", "🔌", "Network Scanner",   "Port scan · OS detect · CVE lookup"),
-    ("2", "📡", "WiFi Lab",          "Scan · Device map · Security test"),
-    ("3", "👤", "OSINT Suite",       "Username · Harvest · Subdomains"),
-    ("4", "🔐", "Crypto & Cipher",   "Encode · Decode · Crack · Steg"),
-    ("5", "🕸️ ", "Web Recon",        "Dirscan · Headers · Crawl"),
-    ("6", "🔑", "Password Lab",      "Hash ID · Crack · Generator"),
-    ("7", "📦", "Packet Lab",        "Capture · ARP scan · Builder"),
-    ("8", "🛡️ ", "Headers Audit",    "Security score · Missing headers"),
-    ("9", "🏓", "Ping & Trace",      "ICMP · Traceroute · Latency"),
+    ("1", "🔌", "Network Scanner",  "Port scan · OS detect · Banner grab · CVE lookup"),
+    ("2", "🌐", "Web Recon",        "Dirscan · Crawl · Headers · Vuln scan"),
+    ("3", "🔍", "DNS / SSL / WHOIS","DNS recon · SSL cert · WHOIS · Zone transfer"),
+    ("4", "👤", "OSINT Suite",      "Username · Harvest · Subdomains · IP Intel"),
+    ("5", "🔐", "Crypto & Cipher",  "Encode · Decode · Crack · All formats"),
+    ("6", "🔑", "Password Lab",     "Hash · Crack · Strength · Generate"),
+    ("7", "📦", "Packet Lab",       "Capture · ARP scan · Builder · Stats"),
+    ("8", "📡", "WiFi Lab",         "Scan · Device map · Router security"),
+    ("9", "🏓", "Ping & Trace",     "ICMP ping · RTT · Packet loss"),
 ]
 
 _BANNER = """[bold cyan]
-  ██████╗ ███████╗██╗   ██╗██╗  ██╗ █████╗
+  ██████╗ ███████╗██╗   ██╗██║  ██╗ █████╗
   ██╔══██╗██╔════╝██║   ██║██║  ██║██╔══██╗
   ██║  ██║█████╗  ██║   ██║███████║███████║
   ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══██║██╔══██║
@@ -55,12 +55,12 @@ class MatrixColumn(Static):
 
     def on_mount(self) -> None:
         self.col_chars = [random.choice(_MATRIX_CHARS) for _ in range(40)]
-        self.offset = random.randint(0, 30)
+        self._scroll = random.randint(0, 30)
         self.speed = random.uniform(0.05, 0.15)
         self.set_interval(self.speed, self._tick)
 
     def _tick(self) -> None:
-        self.offset = (self.offset + 1) % 40
+        self._scroll = (self._scroll + 1) % 40
         self.col_chars[random.randint(0, 39)] = random.choice(_MATRIX_CHARS)
         self.chars = "\n".join(self.col_chars)
 
@@ -68,11 +68,11 @@ class MatrixColumn(Static):
         t = Text()
         chars = self.col_chars
         for i, ch in enumerate(chars):
-            dist = (i - self.offset) % len(chars)
+            dist = (i - self._scroll) % len(chars)
             if dist == 0:
-                t.append(ch, "bold bright_white")
+                t.append(ch, "bold #ffffff")
             elif dist < 4:
-                t.append(ch, "bold bright_green")
+                t.append(ch, "bold #00ff00")
             elif dist < 10:
                 t.append(ch, "green")
             else:
@@ -94,12 +94,12 @@ class MenuCard(Static):
     MenuCard:hover {
         border: round cyan;
         background: #0d1f2d;
-        color: bright_white;
+        color: #ffffff;
     }
     MenuCard.selected {
-        border: round bright_cyan;
+        border: round #00ffff;
         background: #0d2137;
-        color: bright_white;
+        color: #ffffff;
     }
     """
 
@@ -114,7 +114,7 @@ class MenuCard(Static):
         t = Text()
         t.append(f" [{self.key}] ", "bold cyan")
         t.append(f"{self.icon} ", "")
-        t.append(self.title, "bold bright_white")
+        t.append(self.title, "bold #ffffff")
         t.append(f"  —  {self.desc}", "dim")
         return t
 
@@ -176,16 +176,16 @@ class DevhaStudio(App):
     """
 
     BINDINGS = [
-        Binding("1", "launch('network')", "Network"),
-        Binding("2", "launch('wifi')", "WiFi Lab"),
-        Binding("3", "launch('osint')", "OSINT"),
-        Binding("4", "launch('cipher')", "Crypto"),
-        Binding("5", "launch('web')", "Web"),
+        Binding("1", "launch('network')",  "Network"),
+        Binding("2", "launch('web')",      "Web"),
+        Binding("3", "launch('dns')",      "DNS/SSL"),
+        Binding("4", "launch('osint')",    "OSINT"),
+        Binding("5", "launch('cipher')",   "Crypto"),
         Binding("6", "launch('password')", "Passwords"),
-        Binding("7", "launch('packets')", "Packets"),
-        Binding("8", "launch('headers')", "Headers"),
-        Binding("9", "launch('ping')", "Ping"),
-        Binding("q", "quit", "Quit"),
+        Binding("7", "launch('packets')",  "Packets"),
+        Binding("8", "launch('wifi')",     "WiFi"),
+        Binding("9", "launch('ping')",     "Ping"),
+        Binding("q", "quit",               "Quit"),
     ]
 
     TITLE = "devha Hacking Studio"
