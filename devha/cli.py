@@ -101,7 +101,6 @@ def main(
         return
 
     if ctx.invoked_subcommand is None:
-        # No subcommand → show studio TUI
         from devha.fx import hacker_boot
         if not no_banner:
             hacker_boot()
@@ -113,85 +112,144 @@ def main(
         print_banner()
 
 
-_MODULE_INFO = {
-    "network":  {
-        "cmd": "devscanner",
-        "label": "Network Scanner",
-        "example": "devha devscanner scanme.nmap.org",
-        "hint": "devha devscanner <host> [--ports 1-1000] [--json]",
-    },
-    "wifi":     {
-        "cmd": "wifilab",
-        "label": "WiFi Lab",
-        "example": "devha wifilab scan",
-        "hint": "devha wifilab [scan | devices | security | deauth-test]",
-    },
-    "osint":    {
-        "cmd": "username",
-        "label": "OSINT Suite",
-        "example": "devha username johndoe",
-        "hint": "devha username <name>  |  devha harvest <domain>  |  devha subdomains <domain>",
-    },
-    "cipher":   {
-        "cmd": "cipher",
-        "label": "Crypto & Cipher",
-        "example": "devha cipher encode 'Hello' --type caesar --key 13",
-        "hint": "devha cipher [encode | decode | crack | all] <text> [--type TYPE]",
-    },
-    "web":      {
-        "cmd": "dirscan",
-        "label": "Web Recon",
-        "example": "devha dirscan https://example.com",
-        "hint": "devha dirscan <url>  |  devha crawl <url>  |  devha headers <url>",
-    },
-    "password": {
-        "cmd": "passlab",
-        "label": "Password Lab",
-        "example": "devha passlab generate",
-        "hint": "devha passlab [hash | crack | strength | generate | identify]",
-    },
-    "packets":  {
-        "cmd": "packetlab",
-        "label": "Packet Lab",
-        "example": "devha packetlab arp-scan",
-        "hint": "devha packetlab [capture | arp-scan | build | stats]",
-    },
-    "headers":  {
-        "cmd": "headers",
-        "label": "Headers Audit",
-        "example": "devha headers https://example.com",
-        "hint": "devha headers <url> [--json]",
-    },
-    "ping":     {
-        "cmd": "ping",
-        "label": "Ping & Trace",
-        "example": "devha ping 8.8.8.8",
-        "hint": "devha ping <host> [--count 5]",
-    },
-}
-
-
-def _launch_module(module: str) -> None:
-    info = _MODULE_INFO.get(module)
-    if not info:
-        return
-
-    console.print(f"\n[bold cyan]── {info['label']} ──[/bold cyan]")
-    console.print(f"[dim]Usage:[/dim]  [green]{info['hint']}[/green]")
-    console.print(f"[dim]Example:[/dim] [yellow]{info['example']}[/yellow]\n")
-
+def _ask(prompt: str) -> str:
+    """Ask user for input, return empty string on cancel."""
     try:
-        raw = input("Enter command (or press Enter to skip): ").strip()
+        return input(f"  {prompt}: ").strip()
     except (EOFError, KeyboardInterrupt):
-        console.print("\n[dim]Cancelled.[/dim]")
-        return
+        return ""
 
-    if not raw:
-        return
 
-    # Allow shorthand: if user types just args without 'devha', prepend it
-    parts = raw.split()
-    if parts and parts[0] != "devha":
-        parts = ["devha"] + parts
+def _run(*args: str) -> None:
+    subprocess.run(["devha", *args])
 
-    subprocess.run(parts)
+
+def _launch_module(module: str) -> None:  # noqa: C901
+    console.print()
+
+    if module == "network":
+        console.print("[bold cyan]── Network Scanner ──[/bold cyan]")
+        host = _ask("Hostname or IP (e.g. scanme.nmap.org)")
+        if host:
+            _run("devscanner", host)
+
+    elif module == "wifi":
+        console.print("[bold cyan]── WiFi Lab ──[/bold cyan]")
+        console.print("  [1] Scan nearby networks\n  [2] Find devices on my network\n  [3] Check my router security")
+        choice = _ask("Choose (1/2/3)")
+        if choice == "1":
+            _run("wifilab", "scan")
+        elif choice == "2":
+            _run("wifilab", "devices")
+        elif choice == "3":
+            host = _ask("Router IP (e.g. 192.168.1.1)") or "192.168.1.1"
+            _run("wifilab", "security", host)
+
+    elif module == "osint":
+        console.print("[bold cyan]── OSINT Suite ──[/bold cyan]")
+        console.print("  [1] Check username on 50+ sites\n  [2] Harvest info about a domain\n  [3] Find subdomains")
+        choice = _ask("Choose (1/2/3)")
+        if choice == "1":
+            name = _ask("Username")
+            if name:
+                _run("username", name)
+        elif choice == "2":
+            domain = _ask("Domain (e.g. example.com)")
+            if domain:
+                _run("harvest", domain)
+        elif choice == "3":
+            domain = _ask("Domain (e.g. example.com)")
+            if domain:
+                _run("subdomains", domain)
+
+    elif module == "cipher":
+        console.print("[bold cyan]── Crypto & Cipher ──[/bold cyan]")
+        console.print("  [1] Encode text\n  [2] Decode text\n  [3] Crack caesar cipher\n  [4] Show all encodings")
+        choice = _ask("Choose (1/2/3/4)")
+        if choice in ("1", "2"):
+            text = _ask("Text")
+            if not text:
+                return
+            console.print("  Types: caesar  rot13  rot47  atbash  vigenere  base64  hex  binary  morse")
+            cipher_type = _ask("Cipher type") or "caesar"
+            op = "encode" if choice == "1" else "decode"
+            if cipher_type == "caesar":
+                key = _ask("Shift (default 13)") or "13"
+                _run("cipher", op, text, "--type", cipher_type, "--key", key)
+            elif cipher_type == "vigenere":
+                key = _ask("Key word")
+                if key:
+                    _run("cipher", op, text, "--type", cipher_type, "--key", key)
+            else:
+                _run("cipher", op, text, "--type", cipher_type)
+        elif choice == "3":
+            text = _ask("Ciphertext to crack")
+            if text:
+                _run("cipher", "crack", text)
+        elif choice == "4":
+            text = _ask("Text")
+            if text:
+                _run("cipher", "all", text)
+
+    elif module == "web":
+        console.print("[bold cyan]── Web Recon ──[/bold cyan]")
+        console.print("  [1] Directory scan\n  [2] Crawl & extract links/emails\n  [3] Check security headers")
+        choice = _ask("Choose (1/2/3)")
+        url = _ask("URL (e.g. https://example.com)")
+        if not url:
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+        if choice == "1":
+            _run("dirscan", url)
+        elif choice == "2":
+            _run("crawl", url)
+        elif choice == "3":
+            _run("headers", url)
+
+    elif module == "password":
+        console.print("[bold cyan]── Password Lab ──[/bold cyan]")
+        console.print("  [1] Generate a strong password\n  [2] Hash a password\n  [3] Check password strength\n  [4] Identify hash type")
+        choice = _ask("Choose (1/2/3/4)")
+        if choice == "1":
+            _run("passlab", "generate")
+        elif choice == "2":
+            pw = _ask("Password to hash")
+            if pw:
+                _run("passlab", "hash", pw)
+        elif choice == "3":
+            pw = _ask("Password to check")
+            if pw:
+                _run("passlab", "strength", pw)
+        elif choice == "4":
+            h = _ask("Hash string")
+            if h:
+                _run("passlab", "identify", h)
+
+    elif module == "packets":
+        console.print("[bold cyan]── Packet Lab ──[/bold cyan]")
+        console.print("  [1] ARP scan (find devices)\n  [2] Capture packets\n  [3] Traffic stats")
+        choice = _ask("Choose (1/2/3)")
+        if choice == "1":
+            _run("packetlab", "arp-scan")
+        elif choice == "2":
+            iface = _ask("Interface (e.g. en0, eth0)") or "eth0"
+            count = _ask("How many packets (default 20)") or "20"
+            _run("packetlab", "capture", "--iface", iface, "--count", count)
+        elif choice == "3":
+            _run("packetlab", "stats")
+
+    elif module == "headers":
+        console.print("[bold cyan]── Headers Audit ──[/bold cyan]")
+        url = _ask("URL to audit (e.g. https://example.com)")
+        if not url:
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+        _run("headers", url)
+
+    elif module == "ping":
+        console.print("[bold cyan]── Ping ──[/bold cyan]")
+        host = _ask("Hostname or IP (e.g. 8.8.8.8)")
+        if host:
+            _run("ping", host)
