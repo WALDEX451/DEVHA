@@ -87,13 +87,30 @@ pip install devha
 docker run --rm -it ghcr.io/waldex451/devha:latest --help
 ```
 
-### From source
+### From source — globally available (`devha` command everywhere)
+
+```bash
+git clone https://github.com/waldex451/devha.git
+cd devha
+
+# Install pipx if you don't have it yet:
+# macOS:  brew install pipx && pipx ensurepath
+# Linux:  pip install pipx && pipx ensurepath
+# Windows: pip install pipx
+
+pipx install .   # installs devha globally — type devha anywhere!
+```
+
+### From source — only inside this project (virtualenv)
 
 ```bash
 git clone https://github.com/waldex451/devha.git
 cd devha
 poetry install
-poetry run devha --help
+
+poetry run devha --help   # prefix every command with "poetry run"
+# OR activate the venv once:
+poetry shell              # now just type: devha --help
 ```
 
 > **Requirements:** Python 3.10+ · Works on Linux, macOS, Windows · `wifi` command requires OS-specific tools (`iwlist`, `nmcli`, `airport`, or `netsh`)
