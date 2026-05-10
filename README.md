@@ -113,6 +113,10 @@ poetry run devha --help   # prefix every command with "poetry run"
 poetry shell              # now just type: devha --help
 ```
 
+> 💡 **Tip — want to type `devha` anywhere in your terminal?**
+> Run `pipx install .` instead of `poetry install`. pipx installs it globally, isolated from your system Python.
+> macOS: `brew install pipx && pipx ensurepath` · Linux/Windows: `pip install pipx && pipx ensurepath`
+
 > **Requirements:** Python 3.10+ · Works on Linux, macOS, Windows · `wifi` command requires OS-specific tools (`iwlist`, `nmcli`, `airport`, or `netsh`)
 
 ---
