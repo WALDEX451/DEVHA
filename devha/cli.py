@@ -27,6 +27,11 @@ from devha.commands import (
     packetlab,
 )
 from devha.commands.devscanner import devscanner
+from devha.commands.dnsrecon import dnsrecon
+from devha.commands.sslcheck import sslcheck
+from devha.commands.ipinfo import ipinfo
+from devha.commands.webvuln import webvuln
+from devha.commands.whois_cmd import whois_lookup
 
 app = typer.Typer(
     name="devha",
@@ -36,13 +41,13 @@ app = typer.Typer(
     add_completion=True,
 )
 
-# ─── Sub-apps (grouped commands) ──────────────────────────────────────────────────
+# ─── Sub-apps ─────────────────────────────────────────────────────────────────
 app.add_typer(cipher.app,    name="cipher",    help="🔐 Classical & modern ciphers.")
 app.add_typer(wifilab.app,   name="wifilab",   help="📡 WiFi Lab — scan, map devices, test own AP.")
 app.add_typer(passlab.app,   name="passlab",   help="🔑 Password Lab — hash, crack, generate.")
 app.add_typer(packetlab.app, name="packetlab", help="📦 Packet Lab — capture, ARP scan, builder.")
 
-# ─── Single commands ────────────────────────────────────────────────────────────
+# ─── Single commands ──────────────────────────────────────────────────────────
 app.command("portscan")(portscan.portscan)
 app.command("username")(username.username)
 app.command("wifi")(wifi.wifi)
@@ -53,6 +58,11 @@ app.command("harvest")(harvest.harvest)
 app.command("headers")(headers.headers)
 app.command("ping")(ping.ping)
 app.command("devscanner")(devscanner)
+app.command("dnsrecon")(dnsrecon)
+app.command("sslcheck")(sslcheck)
+app.command("ipinfo")(ipinfo)
+app.command("webvuln")(webvuln)
+app.command("whois")(whois_lookup)
 
 
 # ─── Studio TUI ───────────────────────────────────────────────────────────────
@@ -61,23 +71,17 @@ app.command("devscanner")(devscanner)
 def studio(
     no_fx: Annotated[bool, typer.Option("--no-fx", help="Skip boot animation.")] = False,
 ) -> None:
-    """
-    🎮 Open the interactive Hacking Studio TUI menu.
-
-    Navigate with [1-9] keys. All tools available in one interface.
-    """
+    """🎮 Open the interactive Hacking Studio TUI menu."""
     if not no_fx:
         from devha.fx import hacker_boot
         hacker_boot()
-
     from devha.studio import run_studio
     module = run_studio()
-
     if module:
         _launch_module(module)
 
 
-# ─── Version + main callback ───────────────────────────────────────────────────
+# ─── Version + main callback ─────────────────────────────────────────────────
 
 def _version_callback(value: bool) -> None:
     if value:
@@ -88,10 +92,7 @@ def _version_callback(value: bool) -> None:
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    version: Annotated[
-        bool,
-        typer.Option("--version", "-V", callback=_version_callback, is_eager=True, help="Show version."),
-    ] = False,
+    version: Annotated[bool, typer.Option("--version", "-V", callback=_version_callback, is_eager=True, help="Show version.")] = False,
     no_banner: Annotated[bool, typer.Option("--no-banner", help="Skip the ASCII banner.")] = False,
     studio_mode: Annotated[bool, typer.Option("--studio", "-s", help="Launch interactive Studio TUI.")] = False,
 ) -> None:
@@ -99,7 +100,6 @@ def main(
     if studio_mode:
         ctx.invoke(studio)
         return
-
     if ctx.invoked_subcommand is None:
         from devha.fx import hacker_boot
         if not no_banner:
@@ -112,8 +112,9 @@ def main(
         print_banner()
 
 
+# ─── Interactive launcher ─────────────────────────────────────────────────────
+
 def _ask(prompt: str) -> str:
-    """Ask user for input, return empty string on cancel."""
     try:
         return input(f"  {prompt}: ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -128,27 +129,50 @@ def _launch_module(module: str) -> None:  # noqa: C901
     console.print()
 
     if module == "network":
-        console.print("[bold cyan]── Network Scanner ──[/bold cyan]")
-        host = _ask("Hostname or IP (e.g. scanme.nmap.org)")
+        console.print("[bold cyan]── Network & Port Scanner ──[/bold cyan]")
+        host = _ask("Target host or IP (e.g. scanme.nmap.org)")
         if host:
             _run("devscanner", host)
 
-    elif module == "wifi":
-        console.print("[bold cyan]── WiFi Lab ──[/bold cyan]")
-        console.print("  [1] Scan nearby networks\n  [2] Find devices on my network\n  [3] Check my router security")
+    elif module == "web":
+        console.print("[bold cyan]── Web Recon ──[/bold cyan]")
+        console.print("  [1] Directory scan — find hidden paths\n  [2] Crawl — extract links, emails, API keys\n  [3] Security headers audit\n  [4] Vulnerability scan — exposed files, misconfigs")
+        choice = _ask("Choose (1/2/3/4)")
+        url = _ask("URL (e.g. https://example.com)")
+        if not url:
+            return
+        if not url.startswith("http"):
+            url = "https://" + url
+        if choice == "1":
+            _run("dirscan", url)
+        elif choice == "2":
+            _run("crawl", url)
+        elif choice == "3":
+            _run("headers", url)
+        elif choice == "4":
+            _run("webvuln", url)
+
+    elif module == "dns":
+        console.print("[bold cyan]── DNS, SSL & WHOIS ──[/bold cyan]")
+        console.print("  [1] DNS Recon — all records, zone transfer, SPF/DMARC\n  [2] SSL/TLS Inspector — certificate, expiry, protocol\n  [3] WHOIS — registrar, creation date, nameservers")
         choice = _ask("Choose (1/2/3)")
         if choice == "1":
-            _run("wifilab", "scan")
+            domain = _ask("Domain (e.g. example.com)")
+            if domain:
+                _run("dnsrecon", domain)
         elif choice == "2":
-            _run("wifilab", "devices")
+            host = _ask("Hostname (e.g. github.com)")
+            if host:
+                _run("sslcheck", host)
         elif choice == "3":
-            host = _ask("Router IP (e.g. 192.168.1.1)") or "192.168.1.1"
-            _run("wifilab", "security", host)
+            target = _ask("Domain or IP")
+            if target:
+                _run("whois", target)
 
     elif module == "osint":
         console.print("[bold cyan]── OSINT Suite ──[/bold cyan]")
-        console.print("  [1] Check username on 50+ sites\n  [2] Harvest info about a domain\n  [3] Find subdomains")
-        choice = _ask("Choose (1/2/3)")
+        console.print("  [1] Username — check 50+ social platforms\n  [2] Domain harvest — emails, links, tech stack\n  [3] Subdomain discovery\n  [4] IP Intelligence — location, ISP, VPN detection")
+        choice = _ask("Choose (1/2/3/4)")
         if choice == "1":
             name = _ask("Username")
             if name:
@@ -161,10 +185,14 @@ def _launch_module(module: str) -> None:  # noqa: C901
             domain = _ask("Domain (e.g. example.com)")
             if domain:
                 _run("subdomains", domain)
+        elif choice == "4":
+            target = _ask("IP address or hostname")
+            if target:
+                _run("ipinfo", target)
 
     elif module == "cipher":
         console.print("[bold cyan]── Crypto & Cipher ──[/bold cyan]")
-        console.print("  [1] Encode text\n  [2] Decode text\n  [3] Crack caesar cipher\n  [4] Show all encodings")
+        console.print("  [1] Encode text\n  [2] Decode text\n  [3] Crack caesar cipher\n  [4] Show all encodings at once")
         choice = _ask("Choose (1/2/3/4)")
         if choice in ("1", "2"):
             text = _ask("Text")
@@ -191,26 +219,10 @@ def _launch_module(module: str) -> None:  # noqa: C901
             if text:
                 _run("cipher", "all", text)
 
-    elif module == "web":
-        console.print("[bold cyan]── Web Recon ──[/bold cyan]")
-        console.print("  [1] Directory scan\n  [2] Crawl & extract links/emails\n  [3] Check security headers")
-        choice = _ask("Choose (1/2/3)")
-        url = _ask("URL (e.g. https://example.com)")
-        if not url:
-            return
-        if not url.startswith("http"):
-            url = "https://" + url
-        if choice == "1":
-            _run("dirscan", url)
-        elif choice == "2":
-            _run("crawl", url)
-        elif choice == "3":
-            _run("headers", url)
-
     elif module == "password":
         console.print("[bold cyan]── Password Lab ──[/bold cyan]")
-        console.print("  [1] Generate a strong password\n  [2] Hash a password\n  [3] Check password strength\n  [4] Identify hash type")
-        choice = _ask("Choose (1/2/3/4)")
+        console.print("  [1] Generate strong passwords\n  [2] Hash a password\n  [3] Check password strength\n  [4] Identify hash type\n  [5] Crack a hash")
+        choice = _ask("Choose (1/2/3/4/5)")
         if choice == "1":
             _run("passlab", "generate")
         elif choice == "2":
@@ -225,28 +237,36 @@ def _launch_module(module: str) -> None:  # noqa: C901
             h = _ask("Hash string")
             if h:
                 _run("passlab", "identify", h)
+        elif choice == "5":
+            h = _ask("Hash to crack")
+            if h:
+                _run("passlab", "crack", h)
 
     elif module == "packets":
         console.print("[bold cyan]── Packet Lab ──[/bold cyan]")
-        console.print("  [1] ARP scan (find devices)\n  [2] Capture packets\n  [3] Traffic stats")
+        console.print("  [1] ARP scan — find all devices on network (needs sudo)\n  [2] Capture live packets (needs sudo)\n  [3] Traffic stats (needs sudo)")
         choice = _ask("Choose (1/2/3)")
         if choice == "1":
+            console.print("  [dim]Run: sudo devha packetlab arp-scan[/dim]")
             _run("packetlab", "arp-scan")
         elif choice == "2":
             iface = _ask("Interface (e.g. en0, eth0)") or "eth0"
-            count = _ask("How many packets (default 20)") or "20"
+            count = _ask("Number of packets (default 20)") or "20"
             _run("packetlab", "capture", "--iface", iface, "--count", count)
         elif choice == "3":
             _run("packetlab", "stats")
 
-    elif module == "headers":
-        console.print("[bold cyan]── Headers Audit ──[/bold cyan]")
-        url = _ask("URL to audit (e.g. https://example.com)")
-        if not url:
-            return
-        if not url.startswith("http"):
-            url = "https://" + url
-        _run("headers", url)
+    elif module == "wifi":
+        console.print("[bold cyan]── WiFi Lab ──[/bold cyan]")
+        console.print("  [1] Scan nearby WiFi networks\n  [2] Find devices on my network (needs sudo)\n  [3] Check my router for security issues")
+        choice = _ask("Choose (1/2/3)")
+        if choice == "1":
+            _run("wifilab", "scan")
+        elif choice == "2":
+            _run("wifilab", "devices")
+        elif choice == "3":
+            host = _ask("Router IP (default 192.168.1.1)") or "192.168.1.1"
+            _run("wifilab", "security", host)
 
     elif module == "ping":
         console.print("[bold cyan]── Ping ──[/bold cyan]")
