@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "devha"
-version = "0.1.0"
-description = "Developer & Hacking CLI — an ethical hacking and developer toolkit"
+version = "2.0.0"
+description = "devha Hacking Studio — all-in-one ethical hacking and developer toolkit"
 authors = ["devha contributors <devha@example.com>"]
 license = "MIT"
 readme = "README.md"
