@@ -94,12 +94,12 @@ class MenuCard(Static):
     MenuCard:hover {
         border: round cyan;
         background: #0d1f2d;
-        color: bright_white;
+        color: #ffffff;
     }
     MenuCard.selected {
-        border: round bright_cyan;
+        border: round #00ffff;
         background: #0d2137;
-        color: bright_white;
+        color: #ffffff;
     }
     """
 
